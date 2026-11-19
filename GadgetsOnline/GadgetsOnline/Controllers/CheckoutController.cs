@@ -1,62 +1,53 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
-using System.Web.Mvc;
+using System;
+using System.Threading.Tasks;
 using GadgetsOnline.Models;
 using GadgetsOnline.Services;
+using Microsoft.AspNetCore.Mvc;
 
 namespace GadgetsOnline.Controllers
 {
     public class CheckoutController : Controller
     {
-        OrderProcessing orderProcessing;
-        private OrderProcessing GetOrderProcess()
+        private readonly OrderProcessing _orderProcessing;
+
+        public CheckoutController(OrderProcessing orderProcessing)
         {
-            if (this.orderProcessing == null)
-            {
-                this.orderProcessing = new OrderProcessing();
-            }
-            return this.orderProcessing;
+            _orderProcessing = orderProcessing;
         }
 
-        // GET: Checkout
-        public ActionResult Index()
+        public IActionResult Index()
         {
             return View();
         }
 
-        // GET: Checkout
-        public ActionResult AddressAndPayment()
+        [HttpGet]
+        public IActionResult AddressAndPayment()
         {
             return View();
         }
 
         [HttpPost]
-        public ActionResult AddressAndPayment(FormCollection values)
+        public async Task<IActionResult> AddressAndPayment()
         {
             var order = new Order();
-            TryUpdateModel(order);
+            await TryUpdateModelAsync(order);
 
             try
             {
-
                 order.Username = "Anonymous";
                 order.OrderDate = DateTime.Now;
 
-                bool result = GetOrderProcess().ProcessOrder(order, this.HttpContext);
+                _orderProcessing.ProcessOrder(order, this.HttpContext);
 
-                return RedirectToAction("Complete",
-                    new { id = order.OrderId });
+                return RedirectToAction("Complete", new { id = order.OrderId });
             }
             catch
             {
-                //Invalid - redisplay with errors
                 return View(order);
             }
         }
 
-        public ActionResult Complete(int id)
+        public IActionResult Complete(int id)
         {
             return View(id);
         }

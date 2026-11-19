@@ -1,46 +1,46 @@
-﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Web;
 using GadgetsOnline.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace GadgetsOnline.Services
 {
     public class Inventory
     {
-        GadgetsOnlineEntities store = new GadgetsOnlineEntities();
+        private readonly GadgetsOnlineEntities _store;
 
-        public List<Product> GetBestSellers(int count) 
+        public Inventory(GadgetsOnlineEntities store)
         {
-            return store.Products
-                    .Take(count)
-                    .ToList();                                            
+            _store = store;
+        }
+
+        public List<Product> GetBestSellers(int count)
+        {
+            return _store.Products.Take(count).ToList();
         }
 
         public List<Category> GetAllCategories()
         {
-            return store.Categories.ToList();
+            return _store.Categories.ToList();
         }
 
         public List<Product> GetAllProductsInCategory(string category)
         {
-            return store.Products
-                    .Where(p => p.Category.Name == category)
-                    .ToList();
+            return _store.Products
+                .Where(p => p.Category.Name == category)
+                .ToList();
         }
 
-        public Product GetProductById(int id)
+        public Product? GetProductById(int id)
         {
-            return store.Products
-                   .Where(p => p.ProductId == id)
-                   .FirstOrDefault();
+            return _store.Products
+                .Include(p => p.Category)
+                .FirstOrDefault(p => p.ProductId == id);
         }
 
         internal string GetProductNameById(int id)
         {
-            return store.Products
-                   .Where(p => p.ProductId == id)
-                   .FirstOrDefault().Name;
+            return _store.Products.FirstOrDefault(p => p.ProductId == id)?.Name ?? string.Empty;
         }
     }
 }

@@ -1,21 +1,23 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
 using GadgetsOnline.Models;
+using Microsoft.AspNetCore.Http;
 
 namespace GadgetsOnline.Services
 {
     public class OrderProcessing
     {
-        GadgetsOnlineEntities store = new GadgetsOnlineEntities();
-        internal bool ProcessOrder(Order order, HttpContextBase httpContext)
-        {
-            store.Orders.Add(order);
-            store.SaveChanges();
+        private readonly GadgetsOnlineEntities _store;
 
-            //Process the order
-            var cart = ShoppingCart.GetCart(httpContext);
+        public OrderProcessing(GadgetsOnlineEntities store)
+        {
+            _store = store;
+        }
+
+        internal bool ProcessOrder(Order order, HttpContext httpContext)
+        {
+            _store.Orders.Add(order);
+            _store.SaveChanges();
+
+            var cart = ShoppingCart.GetCart(httpContext, _store);
             cart.CreateOrder(order);
 
             return true;
