@@ -23,13 +23,6 @@ namespace GadgetsOnline.Tests
             return db;
         }
 
-        private static ShoppingCart CreateCartWithId(GadgetsOnlineEntities db, string cartId)
-        {
-            // Use reflection to set ShoppingCartId since GetCart needs HttpContext
-            var cart = new ShoppingCart_TestAccessor(db, cartId);
-            return cart.Cart;
-        }
-
         [Fact]
         public void AddToCart_IncreasesCount()
         {
