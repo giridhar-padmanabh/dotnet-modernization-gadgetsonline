@@ -1,24 +1,37 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Web;
 using GadgetsOnline.Models;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 
 namespace GadgetsOnline.Services
 {
     public class ShoppingCart
     {
-        GadgetsOnlineEntities store = new GadgetsOnlineEntities();
-        string ShoppingCartId { get; set; }
+        private readonly GadgetsOnlineEntities _store;
+        private string ShoppingCartId { get; set; } = string.Empty;
 
         public const string CartSessionKey = "CartId";
 
-        public static ShoppingCart GetCart(HttpContextBase context)
+        private ShoppingCart(GadgetsOnlineEntities store)
         {
-            var cart = new ShoppingCart();
+            _store = store;
+        }
+
+        public static ShoppingCart GetCart(HttpContext context, GadgetsOnlineEntities store)
+        {
+            var cart = new ShoppingCart(store);
             cart.ShoppingCartId = cart.GetCartId(context);
             return cart;
         }
+
+        internal static ShoppingCart CreateForTest(GadgetsOnlineEntities store, string cartId)
+        {
+            return new ShoppingCart(store) { ShoppingCartId = cartId };
+        }
+
+        internal string ShoppingCartId_ForTest => ShoppingCartId;
 
         internal int CreateOrder(Order order)
         {
@@ -26,7 +39,6 @@ namespace GadgetsOnline.Services
 
             var cartItems = GetCartItems();
 
-            // Iterate over the items in the cart, adding the order details for each
             foreach (var item in cartItems)
             {
                 var orderDetail = new OrderDetail
@@ -37,70 +49,57 @@ namespace GadgetsOnline.Services
                     Quantity = item.Count
                 };
 
-                // Set the order total of the shopping cart
-                orderTotal += (item.Count * item.Product.Price);
+                orderTotal += item.Count * item.Product.Price;
 
-                store.OrderDetails.Add(orderDetail);
-
+                _store.OrderDetails.Add(orderDetail);
             }
 
-            // Set the order's total to the orderTotal count
             order.Total = orderTotal;
 
-            // Save the order
-            store.SaveChanges();
+            _store.SaveChanges();
 
-            // Empty the shopping cart
             EmptyCart();
 
-            // Return the OrderId as the confirmation number
             return order.OrderId;
         }
 
         private void EmptyCart()
         {
-            var cartItems = store.Carts.Where(cart => cart.CartId == ShoppingCartId);
+            var cartItems = _store.Carts.Where(cart => cart.CartId == ShoppingCartId);
 
             foreach (var cartItem in cartItems)
             {
-                store.Carts.Remove(cartItem);
+                _store.Carts.Remove(cartItem);
             }
 
-            // Save changes
-            store.SaveChanges();
+            _store.SaveChanges();
         }
 
-        public string GetCartId(HttpContextBase context)
+        public string GetCartId(HttpContext context)
         {
-            if (context.Session[CartSessionKey] == null)
+            if (context.Session.GetString(CartSessionKey) == null)
             {
-                if (!string.IsNullOrWhiteSpace(context.User.Identity.Name))
+                if (!string.IsNullOrWhiteSpace(context.User.Identity?.Name))
                 {
-                    context.Session[CartSessionKey] = context.User.Identity.Name;
+                    context.Session.SetString(CartSessionKey, context.User.Identity.Name);
                 }
                 else
                 {
-                    // Generate a new random GUID using System.Guid class
                     Guid tempCartId = Guid.NewGuid();
-
-                    // Send tempCartId back to client as a cookie
-                    context.Session[CartSessionKey] = tempCartId.ToString();
+                    context.Session.SetString(CartSessionKey, tempCartId.ToString());
                 }
             }
 
-            return context.Session[CartSessionKey].ToString();
+            return context.Session.GetString(CartSessionKey)!;
         }
 
         public void AddToCart(int id)
-        {            
-            var cartItem = store.Carts.SingleOrDefault(
-                        c => c.CartId == ShoppingCartId
-                        && c.ProductId == id);
-
+        {
+            var cartItem = _store.Carts.SingleOrDefault(
+                c => c.CartId == ShoppingCartId && c.ProductId == id);
 
             if (cartItem == null)
             {
-                // Create a new cart item if no cart item exists
                 cartItem = new Cart
                 {
                     ProductId = id,
@@ -109,21 +108,19 @@ namespace GadgetsOnline.Services
                     DateCreated = DateTime.Now
                 };
 
-                store.Carts.Add(cartItem);
+                _store.Carts.Add(cartItem);
             }
             else
             {
-                // If the item does exist in the cart, then add one to the quantity
                 cartItem.Count++;
             }
 
-            // Save changes
-            store.SaveChanges();
+            _store.SaveChanges();
         }
 
         public int GetCount()
         {
-            int? count = (from cartItems in store.Carts
+            int? count = (from cartItems in _store.Carts
                           where cartItems.CartId == ShoppingCartId
                           select (int?)cartItems.Count).Sum();
 
@@ -132,10 +129,8 @@ namespace GadgetsOnline.Services
 
         internal int RemoveFromCart(int id)
         {
-            // Get the cart
-            var cartItem = store.Carts.Single(
-                            cart => cart.CartId == ShoppingCartId
-                            && cart.ProductId == id);
+            var cartItem = _store.Carts.Single(
+                cart => cart.CartId == ShoppingCartId && cart.ProductId == id);
 
             int itemCount = 0;
 
@@ -148,11 +143,10 @@ namespace GadgetsOnline.Services
                 }
                 else
                 {
-                    store.Carts.Remove(cartItem);
+                    _store.Carts.Remove(cartItem);
                 }
 
-                // Save changes
-                store.SaveChanges();
+                _store.SaveChanges();
             }
 
             return itemCount;
@@ -160,17 +154,18 @@ namespace GadgetsOnline.Services
 
         public List<Cart> GetCartItems()
         {
-            return store.Carts.Where(cart => cart.CartId == ShoppingCartId).ToList();
+            return _store.Carts
+                .Include(c => c.Product)
+                .Where(cart => cart.CartId == ShoppingCartId)
+                .ToList();
         }
 
         public decimal GetTotal()
         {
-            decimal? total = (from cartItems in store.Carts
+            decimal? total = (from cartItems in _store.Carts
                               where cartItems.CartId == ShoppingCartId
                               select (int?)cartItems.Count * cartItems.Product.Price).Sum();
             return total ?? decimal.Zero;
-
         }
     }
-
 }

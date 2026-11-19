@@ -1,61 +1,55 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web;
-using System.Web.Mvc;
+using System.Net;
 using GadgetsOnline.Models;
 using GadgetsOnline.Services;
 using GadgetsOnline.ViewModel;
+using Microsoft.AspNetCore.Mvc;
 
 namespace GadgetsOnline.Controllers
 {
     public class ShoppingCartController : Controller
     {
+        private readonly GadgetsOnlineEntities _store;
+        private readonly Inventory _inventory;
 
-        Inventory inventory;
-
-        // GET: ShoppingCart
-        public ActionResult Index()
+        public ShoppingCartController(GadgetsOnlineEntities store, Inventory inventory)
         {
-            var cart = ShoppingCart.GetCart(this.HttpContext);
-            // Set up our ViewModel
+            _store = store;
+            _inventory = inventory;
+        }
+
+        public IActionResult Index()
+        {
+            var cart = ShoppingCart.GetCart(this.HttpContext, _store);
             var viewModel = new ShoppingCartViewModel
             {
                 CartItems = cart.GetCartItems(),
                 CartTotal = cart.GetTotal()
             };
-            // Return the view
             return View(viewModel);
         }
 
-        public ActionResult AddToCart(int id)
-        {            
-            var cart = ShoppingCart.GetCart(this.HttpContext);
-            
+        public IActionResult AddToCart(int id)
+        {
+            var cart = ShoppingCart.GetCart(this.HttpContext, _store);
             cart.AddToCart(id);
-
-            // Go back to the main store page for more shopping
             return RedirectToAction("Index");
         }
 
-        public ActionResult RemoveFromCart(int id)
+        public IActionResult RemoveFromCart(int id)
         {
-            var cart = ShoppingCart.GetCart(this.HttpContext);
+            var cart = ShoppingCart.GetCart(this.HttpContext, _store);
             int itemCount = cart.RemoveFromCart(id);
-            inventory = new Inventory();
-            var productName = inventory.GetProductNameById(id);
+            var productName = _inventory.GetProductNameById(id);
 
-            // Display the confirmation message
             var results = new ShoppingCartRemoveViewModel
             {
-                Message = Server.HtmlEncode(productName) + " has been removed from your shopping cart.",
+                Message = WebUtility.HtmlEncode(productName) + " has been removed from your shopping cart.",
                 CartTotal = cart.GetTotal(),
                 CartCount = cart.GetCount(),
                 ItemCount = itemCount,
                 DeleteId = id
             };
-            return RedirectToAction("Index");            
+            return RedirectToAction("Index");
         }
-
     }
 }
